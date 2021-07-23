@@ -1,0 +1,327 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_KellyACESupportCommunityTemplate_name": {
+            "defaultValue": "KellyACESupportCommunityTemplate",
+            "type": "String"
+        },
+        "connections_office365groups_externalid": {
+            "defaultValue": "/subscriptions/3252739f-20c5-49e4-8668-378aea819145/resourceGroups/Kelly/providers/Microsoft.Web/connections/office365groups",
+            "type": "String"
+        },
+        "connections_sharepointonline_externalid": {
+            "defaultValue": "/subscriptions/3252739f-20c5-49e4-8668-378aea819145/resourceGroups/Kelly/providers/Microsoft.Web/connections/sharepointonline",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_KellyACESupportCommunityTemplate_name')]",
+            "location": "westeurope",
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        },
+                        "GroupID": {
+                            "defaultValue": "00000000-0000-0000-0000-000000000000",
+                            "type": "String"
+                        },
+                        "KellyAceCommunity": {
+                            "defaultValue": "KellyAceCommunity",
+                            "type": "String"
+                        },
+                        "ListId": {
+                            "defaultValue": "686b9ae8-5d4d-4cf4-b48a-2a626b5ba964",
+                            "type": "String"
+                        },
+                        "SiteDomain": {
+                            "defaultValue": "https://devscope365.sharepoint.com/sites/",
+                            "type": "String"
+                        },
+                        "SiteName": {
+                            "defaultValue": "NewAppName",
+                            "type": "String"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_group_member_is_added_or_removed": {
+                            "recurrence": {
+                                "frequency": "Minute",
+                                "interval": 3
+                            },
+                            "splitOn": "@triggerBody()",
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['office365groups']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "/trigger/v1.0/groups/delta",
+                                "queries": {
+                                    "$select": "members",
+                                    "groupId": "@{parameters('GroupID')}"
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Main": {
+                            "actions": {
+                                "Create_item_Users_by_App_List": {
+                                    "runAfter": {
+                                        "Parse_JSON": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "body": {
+                                            "body": "{    \n'__metadata': {'type': 'SP.Data.Users_x0020_by_x0020_App_x0020_ListListItem' }, \n'UserId': '@{outputs('UserId')}',\n'GroupId': '@{body('Parse_JSON')?['d']?['GroupId']}',\n'Action': '@{outputs('Action')}'\n}",
+                                            "headers": {
+                                                "content-type": "application/json;odata=verbose"
+                                            },
+                                            "method": "POST",
+                                            "uri": "_api/web/lists/getbyid('@{outputs('ListId')}')/items"
+                                        },
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent(outputs('SiteDomain'),outputs('KellyAceCommunity')))}/httprequest"
+                                    }
+                                },
+                                "Get_Apps_GroupID": {
+                                    "runAfter": {},
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "body": {
+                                            "headers": {
+                                                "accept": "application/json;odata=verbose",
+                                                "content-type": "application/json;odata=verbose"
+                                            },
+                                            "method": "GET",
+                                            "uri": "/_api/web/allproperties"
+                                        },
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "path": "/datasets/@{encodeURIComponent(encodeURIComponent(outputs('SiteDomain'),outputs('SiteName')))}/httprequest"
+                                    }
+                                },
+                                "Parse_JSON": {
+                                    "runAfter": {
+                                        "Get_Apps_GroupID": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ParseJson",
+                                    "inputs": {
+                                        "content": "@body('Get_Apps_GroupID')?['body']",
+                                        "schema": {
+                                            "properties": {
+                                                "d": {
+                                                    "properties": {
+                                                        "FollowLinkEnabled": {
+                                                            "type": "string"
+                                                        },
+                                                        "GroupAlias": {
+                                                            "type": "string"
+                                                        },
+                                                        "GroupDocumentsListId": {
+                                                            "type": "string"
+                                                        },
+                                                        "GroupDocumentsUrl": {
+                                                            "type": "string"
+                                                        },
+                                                        "GroupId": {
+                                                            "type": "string"
+                                                        },
+                                                        "GroupType": {
+                                                            "type": "string"
+                                                        },
+                                                        "HomepageProvisioned": {
+                                                            "type": "string"
+                                                        },
+                                                        "LastGroupSitePrivacyUpdated": {
+                                                            "type": "string"
+                                                        },
+                                                        "ProvCorrelationId": {
+                                                            "type": "string"
+                                                        },
+                                                        "SiteNotebookGuid": {
+                                                            "type": "string"
+                                                        },
+                                                        "__metadata": {
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": {
+                                                                    "type": "string"
+                                                                },
+                                                                "uri": {
+                                                                    "type": "string"
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        },
+                                                        "contenttypesusagebackfillversion": {
+                                                            "type": "string"
+                                                        },
+                                                        "disabledhelpcollections": {
+                                                            "type": "string"
+                                                        },
+                                                        "enabledhelpcollections": {
+                                                            "type": "string"
+                                                        },
+                                                        "profileschemaversion": {
+                                                            "type": "string"
+                                                        },
+                                                        "taxonomyhiddenlist": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_approvallevels": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_associategroups": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_associatemembergroup": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_associateownergroup": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_associatevisitorgroup": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_categories": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_createdassociategroups": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_defaultlanguage": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_extenderversion": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_indexedpropertykeys": {
+                                                            "type": "string"
+                                                        },
+                                                        "vti_x005f_sitemasterid": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Variables": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Scope"
+                        },
+                        "Variables": {
+                            "actions": {
+                                "Action": {
+                                    "runAfter": {
+                                        "UserID": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose",
+                                    "inputs": "@if(equals(triggerOutputs()?['body/@removed/reason'],'deleted'),'Remove','Add')"
+                                },
+                                "KellyAceCommunity": {
+                                    "runAfter": {
+                                        "SiteDomain": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose",
+                                    "inputs": "@parameters('KellyAceCommunity')"
+                                },
+                                "ListId": {
+                                    "runAfter": {
+                                        "SiteName": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose",
+                                    "inputs": "@parameters('ListId')"
+                                },
+                                "SiteDomain": {
+                                    "runAfter": {
+                                        "Action": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose",
+                                    "inputs": "@parameters('SiteDomain')"
+                                },
+                                "SiteName": {
+                                    "runAfter": {
+                                        "KellyAceCommunity": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Compose",
+                                    "inputs": "@parameters('SiteName')"
+                                },
+                                "UserID": {
+                                    "runAfter": {},
+                                    "type": "Compose",
+                                    "inputs": "@triggerBody()?['id']"
+                                }
+                            },
+                            "runAfter": {},
+                            "type": "Scope"
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "office365groups": {
+                                "connectionId": "[parameters('connections_office365groups_externalid')]",
+                                "connectionName": "office365groups",
+                                "id": "/subscriptions/3252739f-20c5-49e4-8668-378aea819145/providers/Microsoft.Web/locations/westeurope/managedApis/office365groups"
+                            },
+                            "sharepointonline": {
+                                "connectionId": "[parameters('connections_sharepointonline_externalid')]",
+                                "connectionName": "sharepointonline",
+                                "id": "/subscriptions/3252739f-20c5-49e4-8668-378aea819145/providers/Microsoft.Web/locations/westeurope/managedApis/sharepointonline"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}
